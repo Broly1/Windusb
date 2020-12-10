@@ -29,7 +29,7 @@ sleep 2s
 if [[ -f /etc/debian_version ]]; then
 	apt install -y wimtools p7zip-full rsync
 elif [[ -f /etc/fedora-release ]]; then
-	dnf install -y wmlib-utils p7zip p7zip-plugins rsync
+	dnf install -y wimlib-utils p7zip p7zip-plugins rsync
 elif [[ -f /etc/arch-release ]]; then
 	pacman -Syu --noconfirm --needed wimlib p7zip rsync
 else
