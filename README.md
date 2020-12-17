@@ -1,4 +1,4 @@
-# How to create a windows 10 bootble usb installer on linux
+# How to create a windows 10 bootble usb installer on linux and macOS.
 
 ## Windusb
 This script will split the fat install.wim into smaller parts that fits within the fat32 limit,
