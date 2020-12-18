@@ -27,7 +27,7 @@ cat << "EOF"
 #    PARTITIONING THE DRIVE   #
 ###############################
 EOF
-diskutil umount /Volumes/"$INSTALLER_DEVICE"
+diskutil unmountDisk /Volumes/"$INSTALLER_DEVICE"
 diskutil eraseVolume ms-dos WINDUSB "$INSTALLER_DEVICE"
 hdiutil attach Win*.iso -mountpoint /Volumes/WINISO
 clear
