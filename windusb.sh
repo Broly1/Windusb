@@ -79,13 +79,16 @@ cat << "EOF"
 ############################
 EOF
 if [[ "$OSTYPE" == "darwin"* ]]; then
-	read -r -p "$(printf "Homebrew, wimlib, and rsync will be installed if not already avaliable,\n do you wish to continue [y/n]? ")" yn
-	case $yn in
-		[Yy]* ) main "$@"; return 1;;
-		[Nn]* ) exit;;
-		* ) printf "Please answer yes or no.\n";;
-	esac
+	while true; do
+		read -r -p "$(printf "Homebrew, wimlib, and rsync will be installed if not already avaliable,\n do you wish to continue [y/n]? ")" yn
+		case $yn in
+			[Yy]* ) main "$@"; return 1;;
+			[Nn]* ) exit;;
+			* ) printf "Please answer yes or no.\n";;
+		esac
+	done
 fi
+
 
 # Linux
 
