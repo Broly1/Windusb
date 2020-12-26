@@ -4,7 +4,7 @@
 This script will split the fat install.wim into smaller parts that fits within the fat32 limit,
 partition and format the usb drive and copy all the iso files to it,
 making it a bootble usb driver installer.
-Supports Ubuntu, Arch Linux, and Fedora based distros and macOS.
+Supports macOS, Ubuntu, Arch Linux, and Fedora.
 For more details read dragon788 <a href="https://gist.github.com/dragon788/26921410d8de054366188c5c5435ae01" target="_top">win10_binary_fission.md</a>
 Credits to him.
 
@@ -20,7 +20,7 @@ In terminal:
 
    4. select the usb-drive and type ``y`` to start.
   
-   5. It will take a long time, to umount old 2.0 usb-drives, do not remove it or cancel it before it finishes syncing. 
+   5. It will take a long time to umount old 2.0 usb-drives, do not remove it or cancel it before it finishes syncing. 
 
 ### macOS Usage:
 
