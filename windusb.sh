@@ -5,29 +5,29 @@
 # macOS
 
 homebrewfunc(){
-  if ! command -v brew &>/dev/null; then
-    echo | /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
-    echo | brew update
-  fi
+	if ! command -v brew &>/dev/null; then
+		echo | /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+		echo | brew update
+	fi
 }
 wimlibfunc(){
-  if brew ls --versions wimlib > /dev/null; then
-    printf "wimlib already installed.\n"
-  else
-    echo | brew install wimlib
-  fi
+	if brew ls --versions wimlib > /dev/null; then
+		printf "wimlib already installed.\n"
+	else
+		echo | brew install wimlib
+	fi
 }
 rsyncfunc(){
-  if brew ls --versions rsync > /dev/null; then
-    printf "rsync already installed.\n"
-  else
-    echo | brew install rsync
-  fi
+	if brew ls --versions rsync > /dev/null; then
+		printf "rsync already installed.\n"
+	else
+		echo | brew install rsync
+	fi
 }
 partextract(){
-  set -e
-  clear
-  cat << "EOF"
+	set -e
+	clear
+	cat << "EOF"
 #######################################
 #  WARNING: THE DRIVE WILL BE ERASED  #
 #######################################
@@ -44,8 +44,8 @@ sudo diskutil eraseVolume ms-dos WINDUSB "$INSTALLER_DEVICE"
 sudo hdiutil attach Win*.iso -mountpoint /Volumes/WINISO
 }
 wimsplitfunc(){
-  clear
-  cat << "EOF"
+	clear
+	cat << "EOF"
 #################################
 #  COPYING FILES TO THE DRIVE   #
 #################################
@@ -66,11 +66,11 @@ printf "Installation finished\n"
 exit 1
 }
 main(){
-  partextract "$@"
-  homebrewfunc "$@"
-  wimlibfunc "$@"
-  rsyncfunc "$@"
-  wimsplitfunc "$@"
+	partextract "$@"
+	homebrewfunc "$@"
+	wimlibfunc "$@"
+	rsyncfunc "$@"
+	wimsplitfunc "$@"
 }
 clear
 cat << "EOF"
@@ -79,20 +79,21 @@ cat << "EOF"
 ############################
 EOF
 if [[ "$OSTYPE" == "darwin"* ]]; then
-  while true; do
-    read -r -p "$(printf "Homebrew, wimlib, and rsync will be installed if not already avaliable,\n do you wish to continue [y/n]? ")" yn
-    case $yn in
-      [Yy]* ) main "$@"; return 1;;
-      [Nn]* ) exit;;
-      * ) printf "Please answer yes or no.\n";;
-    esac
-  done
+	while true; do
+		read -r -p "$(printf "Homebrew, wimlib, and rsync will be installed if not already avaliable,\n do you wish to continue [y/n]? ")" yn
+		case $yn in
+			[Yy]* ) main "$@"; return 1;;
+			[Nn]* ) exit;;
+			* ) printf "Please answer yes or no.\n";;
+		esac
+	done
 fi
 
 
 # Linux
 
 [[ "$(whoami)" != "root" ]] && exec sudo -- "$0" "$@"
+declare -r cleanup="rm -rf /WINBLOWS/"
 set -e
 clear
 cat << "EOF"
@@ -101,23 +102,24 @@ cat << "EOF"
 ############################
 EOF
 sleep 2s
+$cleanup
 dependencies(){
-  clear
-  cat << "EOF"
+	clear
+	cat << "EOF"
 ################################
 #    INSTALLING DEPENDENCIES   #
 ################################
 EOF
 sleep 2s
 if [[ -f /etc/debian_version ]]; then
-  apt install -y wimtools rsync
+	apt install -y wimtools p7zip-full rsync
 elif [[ -f /etc/fedora-release ]]; then
-  dnf install -y wimlib-utils rsync
+	dnf install -y wimlib-utils p7zip p7zip-plugins rsync
 elif [[ -f /etc/arch-release ]]; then
-  pacman -Syu --noconfirm --needed wimlib rsync
+	pacman -Syu --noconfirm --needed wimlib p7zip rsync
 else
-  printf "Your distro is not supported!'\n"
-  exit 1
+	printf "Your distro is not supported!'\n"
+	exit 1
 fi
 }
 clear
@@ -129,17 +131,17 @@ EOF
 readarray -t lines < <((lsblk -p -no name,size,MODEL,VENDOR,TRAN | grep "usb"))
 printf "Please select the usb-drive!\n"
 select choice in "${lines[@]}"; do
-  [[ -n $choice ]] || { printf ">>> Invald Selection!\n" >&2; continue; }
-  break
+	[[ -n $choice ]] || { printf ">>> Invald Selection!\n" >&2; continue; }
+	break
 done
 read -r drive _ <<<"$choice"
 if [[ -z "$choice" ]]; then
-  printf "No usb-drive found please insert the USB Drive and try again.\n"
-  exit 1
+	printf "No usb-drive found please insert the USB Drive and try again.\n"
+	exit 1
 fi
 partformat(){
-  clear
-  cat << "EOF"
+	clear
+	cat << "EOF"
 ###############################
 #    PARTITIONING THE DRIVE   #
 ###############################
@@ -150,47 +152,41 @@ sgdisk -e "$drive" --new=0:0: -t 0:0700 && partprobe
 sleep 2s
 mkfs.fat -F32 -n WINDUSB "$drive"1
 mount "$drive"1 /mnt/
+mkdir /WINBLOWS
 }
 extract(){
-  clear
-  cat << "EOF"
-###########################
-#    MOUNTING THE ISO     #
-###########################
+	clear
+	cat << "EOF"
+#############################
+#    EXTRACTING ISO FILE    #
+#############################
 EOF
-if [ ! -d "/media/winiso" ] 
-then
-  mkdir /media/winiso
-else
-  umount /media/winiso || :; rm -rf /media/winiso; mkdir /media/winiso
-fi  
-mount -o loop Win*.iso /media/winiso
-clear
-cat << "EOF"
-####################################
-#    COPYING FILES TO THE DRIVE    #
-####################################
-EOF
-rsync -a --info=progress2 --no-links --no-perms --no-owner --no-group --exclude sources/install.wim /media/winiso/ /mnt/
+7z x Win*.iso -o/WINBLOWS/
 clear
 cat << "EOF"
 ###############################
 #    SPLITTING INSTALL.WIM    #
 ###############################
 EOF
-printf "This will take a long time!\n"
-wimsplit /media/winiso/sources/install.wim /mnt/sources/install.swm 1000
-umount /media/winiso || :; rm -rf /media/winiso
+wimsplit /WINBLOWS/sources/install.wim /WINBLOWS/sources/install.swm 1000
+rm -rf /WINBLOWS/sources/install.wim
 clear
-printf "umounting the drive do not remove it or cancel, this will take a long time!\n"
+cat << "EOF"
+####################################
+#    COPYING FILES TO THE DRIVE    #
+####################################
+EOF
+rsync -a --info=progress2 /WINBLOWS/ /mnt/
+printf "umounting the drive do not remove it or cancel this, it will take a long time!\n"
 umount "$drive"1
 printf "Installation finished!\n"
+$cleanup
 }
 while true; do
-  read -r -p "$(printf %s "Disk ""$drive"" will be erased wimlib and rsync will be installed, do you wish to continue [y/n]? ")" yn
-  case $yn in
-    [Yy]* ) dependencies; partformat; extract; break;;
-    [Nn]* ) exit;;
-    * ) printf "Please answer yes or no.\n";;
-  esac
+	read -r -p "$(printf %s "Disk ""$drive"" will be erased and wimlib, p7zip, rsync will be installed,\n do you wish to continue [y/n]? ")" yn
+	case $yn in
+		[Yy]* ) dependencies; partformat; extract; break;;
+		[Nn]* ) exit;;
+		* ) printf "Please answer yes or no.\n";;
+	esac
 done
