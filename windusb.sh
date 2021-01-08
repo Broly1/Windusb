@@ -76,6 +76,7 @@ sudo hdiutil attach Win*.iso -mountpoint /Volumes/WINISO
 wimsplitfunc(){
 
   clear
+
   cat << "EOF"
 #################################
 #  COPYING FILES TO THE DRIVE   #
