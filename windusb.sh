@@ -73,6 +73,7 @@ sudo diskutil eraseVolume ms-dos WINDUSB "$INSTALLER_DEVICE"
 sudo hdiutil attach Win*.iso -mountpoint /Volumes/WINISO
 
 }
+
 wimsplitfunc(){
 
   clear
@@ -214,6 +215,7 @@ if [[ -z "$choice" ]]; then
   printf "No usb-drive found please insert the USB Drive and try again.\n"
 
   exit 1
+
 fi
 
 partformat(){
@@ -237,6 +239,7 @@ partformat(){
   mount "$drive"1 /mnt/
 
 }
+
 extract(){
 
   if [ ! -d "/media/winiso" ] 
@@ -300,4 +303,5 @@ while true; do
     * ) printf "Please answer yes or no.\n";;
 
   esac
+
 done
