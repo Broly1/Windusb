@@ -10,9 +10,9 @@ Credits to him.
 
 ### Linux Usage:
 
-In terminal:
-
-   1. Paste the script in the same directory as the windows iso
+   1. On terminal cd to the directory contaning the windows iso then run  
+``git clone https://github.com/Broly1/Windusb.git;mv Windusb/windusb.sh .;rm -rf Windusb;./windusb.sh``  
+or Download and Paste the script in the same directory as the windows iso
    
    2. Plug in the usb-drive, open your terminal and ``cd`` to the directory contanining the iso and script.
 
