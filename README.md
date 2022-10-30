@@ -1,7 +1,7 @@
 # How to create a windows 10 or 11 bootable usb installer on Linux.
 
 ## Windusb
-This script format flash drives to FAT32    
+This script formats flash drives to FAT32    
 mounts the windows iso and copies all files from the iso to the flash drive,    
 except the install.win file wich is over 4GB in size  
 wich is not supported by FAT32 file systems, so it compress it using wimlib-imagex like   
