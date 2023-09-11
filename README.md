@@ -1,28 +1,47 @@
-# How to create a windows 10 or 11 bootable usb installer on Linux.
+# WindUSB Installation Script
 
-## Windusb
-This script formats flash drives to FAT32    
-mounts the windows iso and copies all files from the iso to the flash drive,    
-except the install.win file wich is over 4GB in size  
-wich is not supported by FAT32 file systems, so it compress it using wimlib-imagex like   
-Microsoft install media does, so I chose to do it the same way,  
-this script supports:  
-Debian, Arch Linux, and Fedora base distros.  
+## Description
 
-### Linux Usage:
+This Bash script automates the process of creating a bootable Windows USB drive using a Windows ISO file. It provides a user-friendly interface to format a USB drive, install required dependencies, and extract the Windows ISO file to the drive. The script also checks for root permissions and supports multiple Linux distributions.
 
-   1. Plug in the usb-drive then open your terminal cd to the directory contaning the windows iso then run  
+## Usage
 
-   ```
-   curl -o windusb.sh https://raw.githubusercontent.com/Broly1/Windusb/master/windusb.sh && chmod +x windusb.sh && ./windusb.sh
-   ```  
-  Or download and Paste the script in the same directory as the windows iso
-   
-   2. Plug in the usb-drive, open your terminal and ``cd`` to the directory contanining the iso and script.
+1. Make sure you have a Windows ISO file ready.
 
-   3. Run `./windusb.sh` enter your password.
+2. Execute the script type your root password. You can do this by running:
 
-   4. select the usb-drive and type ``y`` to start.
-  
-   5. It will take a long time to umount old 2.0 usb-drives, do not remove it or cancel it before it finishes syncing. 
+     ```bash
+      curl -o windusb.sh https://raw.githubusercontent.com/Broly1/Windusb/master/windusb.sh && chmod +x windusb.sh && ./windusb.sh
 
+    ```
+or 
+    ```bash
+   chmod +x windusb.sh && ./windusb.sh
+    ```
+
+
+
+
+3. Follow the on-screen instructions:
+
+   - You will be prompted to select a USB drive from the list of connected drives. Ensure you choose the correct drive as it will be formatted and all data will be erased.
+
+   - The script will install the necessary dependencies for formatting and extracting.
+
+   - You will be asked to confirm the erasure of the selected drive and the installation of dependencies.
+
+   - The Windows ISO file will be extracted to the USB drive. This process may take some time.
+
+4. Once the script finishes, you will receive a message indicating that the installation is complete.
+
+## License
+
+This script is licensed under the GNU General Public License v3.0. You can find the full license text [here](https://www.gnu.org/licenses/gpl-3.0.txt).
+
+## Author
+
+This script was authored by Broly.
+
+Feel free to use and modify this script according to your needs. If you encounter any issues or have suggestions for improvements, please let me know.
+
+**Note**: Be cautious when using this script, as it will format the selected USB drive and erase all existing data. Make sure you have backed up any important data before running the script.
