@@ -77,6 +77,18 @@ EOF
   fi
 }
 
+# This function checks for Windows ISO files (Win*.iso) in the current directory and prompts to download if none are found.
+get_the_iso() {
+	iso_file=(Win*.iso)
+	if [ -e "${iso_file[0]}" ]; then
+		printf "Windows iso found!\n"
+	else
+		clear
+		printf " Please download the Windows ISO and ensure that you run\n the script from the same directory as the ISO file.\n"
+		exit 1
+	fi
+}
+
 # Function to format the selected USB drive and create a NTFS partition
 partformat() {
 	clear
@@ -122,6 +134,7 @@ format_drive() {
 		case $yn in
 			# If the user types "y" or "Y", run the dependencies() and partformat() functions, and break out of the loop
 			[Yy]*)
+			get_the_iso "$@"
 			dependencies "$@"
 			partformat "$@"
 			break
@@ -148,7 +161,7 @@ extract() {
 EOF
 # here we use 7zip to extract the iso because mounting it cause a lot of issues if we cancel the script 
 # for any reason
-7z x -bso0 -bsp1 Win*.iso -aoa -o"$usb_mount_point"
+7z x -bso0 -bsp1 "$iso_file" -aoa -o"$usb_mount_point"
 
 # Unmount the Windows ISO file and remove the temporary directory
 clear
