@@ -53,11 +53,11 @@ install_dependencies() {
 #############################
 EOF
 if [[ -f /etc/debian_version ]]; then
-	apt install -y ntfs-3g p7zip-full
+	apt install -y ntfs-3g p7zip-full gdisk
 elif [[ -f /etc/fedora-release ]]; then
-	dnf install -y ntfs-3g p7zip-plugins
+	dnf install -y ntfs-3g p7zip-plugins gdisk
 elif [[ -f /etc/arch-release ]]; then
-	pacman -Sy --noconfirm --needed ntfs-3g p7zip
+	pacman -Sy --noconfirm --needed ntfs-3g p7zip gptfdisk
 else
 	printf "Your distro is not supported!'\n"
 	exit 1
