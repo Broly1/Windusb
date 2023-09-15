@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-
+#
 # Author: Broly
 # License: GNU General Public License v3.0
 # https://www.gnu.org/licenses/gpl-3.0.txt
 
-# Function to welcome user and check if running as root
+# Welcome the user and check if running as root
 welcome() {
 	clear
 	cat <<"EOF"
@@ -13,17 +13,14 @@ welcome() {
 ########################
 Please enter your password!
 EOF
-# Check if running as root
 if [[ "$(whoami)" != "root" ]]; then
 	exec sudo -- "$0" "$@"
 fi
-
-  # Set shell to exit on error
-  set -e
+set -e
 }
 
-# Function to prompt user to select a USB drive
-getthedrive() {
+# Prompt the user to select a USB drive
+get_the_drive() {
 	clear
 	cat <<"EOF"
 ################################################
@@ -31,53 +28,43 @@ getthedrive() {
 ################################################
 Please select the USB drive!
 EOF
+readarray -t lines < <(lsblk -p -no name,size,MODEL,VENDOR,TRAN | grep "usb")
+select choice in "${lines[@]}"; do
+	[[ -n $choice ]] || {
+		printf ">>> Invalid selection!\n" >&2
+			continue
+		}
+		break
+	done
+	read -r drive _ <<<"$choice"
 
-  # Get a list of USB drives connected to the system
-  readarray -t lines < <(lsblk -p -no name,size,MODEL,VENDOR,TRAN | grep "usb")
-
-  # Prompt user to select a USB drive from the list
-  select choice in "${lines[@]}"; do
-	  # Check if selection is valid
-	  [[ -n $choice ]] || {
-		  printf ">>> Invalid selection!\n" >&2
-			    continue
-		    }
-		    break
-	    done
-
-  # Extract the drive name from the user's selection
-  read -r drive _ <<<"$choice"
-
-  # Check if no USB drive was selected
-  if [[ -z "$choice" ]]; then
-	  printf "No USB drive found. Please insert the USB drive and try again.\n"
-	  exit 1
-  fi
+	if [[ -z "$choice" ]]; then
+		printf "No USB drive found. Please insert the USB drive and try again.\n"
+		exit 1
+	fi
 }
 
-# Function to install required dependencies for WindUSB
-dependencies() {
+# Install required dependencies for WindUSB
+install_dependencies() {
 	clear
 	cat <<"EOF"
 #############################
 #  Installing Dependencies  #
 #############################
 EOF
-
-  # Check which Linux distribution is being used and install dependencies accordingly
-  if [[ -f /etc/debian_version ]]; then
-	  apt install -y ntfs-3g p7zip-full
-  elif [[ -f /etc/fedora-release ]]; then
-	  dnf install -y ntfs-3g p7zip-plugins
-  elif [[ -f /etc/arch-release ]]; then
-	  pacman -Sy --noconfirm --needed ntfs-3g p7zip
-  else
-	  printf "Your distro is not supported!'\n"
-	  exit 1
-  fi
+if [[ -f /etc/debian_version ]]; then
+	apt install -y ntfs-3g p7zip-full
+elif [[ -f /etc/fedora-release ]]; then
+	dnf install -y ntfs-3g p7zip-plugins
+elif [[ -f /etc/arch-release ]]; then
+	pacman -Sy --noconfirm --needed ntfs-3g p7zip
+else
+	printf "Your distro is not supported!'\n"
+	exit 1
+fi
 }
 
-# This function checks for Windows ISO files (Win*.iso) in the current directory and prompts to download if none are found.
+# Check for Windows ISO files (Win*.iso) in the current directory
 get_the_iso() {
 	iso_file=(Win*.iso)
 	if [ -e "${iso_file[0]}" ]; then
@@ -89,8 +76,8 @@ get_the_iso() {
 	fi
 }
 
-# Function to format the selected USB drive and create a NTFS partition
-partformat() {
+# Format the selected USB drive and create an NTFS partition
+format_drive() {
 	clear
 	cat <<"EOF"
 #########################
@@ -98,72 +85,48 @@ partformat() {
 #########################
 EOF
 printf "Formatting the selected USB drive and creating a NTFS partition...\n"
-
-  # Unmount any partitions on the selected drive
-  umount "$drive"* || :
-
-  # Wipe all existing filesystem signatures from the selected drive
-  wipefs -af "$drive"
-
-  # Create a new partition on the selected drive
-  sgdisk -e "$drive" --new=0:0: -t 0:0700 && partprobe
-
-  # Wait 3 seconds to ensure the new partition is available
-  sleep 3s
-
-# Unmount any partitions on the selected drive
 umount "$drive"* || :
-
-# Format the new partition with the NTFS filesystem and label it as "WINDUSB"
+wipefs -af "$drive"
+sgdisk -e "$drive" --new=0:0: -t 0:0700 && partprobe
+sleep 3s
+umount "$drive"* || :
 mkntfs -Q -L WINDUSB "$drive"1
-
-
-
-  # Mount the new partition on /run/media/wind21192t/
-  usb_mount_point="/run/media/wind21192/" 
-  mkdir -p "$usb_mount_point"
-  mount "$drive"1 "$usb_mount_point"
+usb_mount_point="/run/media/wind21192/" 
+mkdir -p "$usb_mount_point"
+mount "$drive"1 "$usb_mount_point"
 }
 
-# Function that prompts the user to confirm if they want to erase the disk, install dependencies, and format the partition
-format_drive() {
+# Get everything ready for the Windows installation
+prepare_for_installation() {
 	while true; do
-		# Using printf to format the prompt string, allowing the variable $drive to be included in the string
 		printf " Disk %s will be erased\n ntfs-3g & p7zip will be installed\n Do you wish to continue [y/n]? " "$drive"
 		read -r yn
 		case $yn in
-			# If the user types "y" or "Y", run the dependencies() and partformat() functions, and break out of the loop
 			[Yy]*)
-			get_the_iso "$@"
-			dependencies "$@"
-			partformat "$@"
-			break
-			;;
-			# If the user types "n" or "N", exit the script
+				get_the_iso "$@"
+				install_dependencies "$@"
+				format_drive "$@"
+				break
+				;;
 			[Nn]*)
-			exit
-			;;
-			# If the user types anything else, print an error message and loop back to the top of the loop
+				exit
+				;;
 			*)
-			printf "Please answer yes or no.\n"
-			;;
-	esac
-done
+				printf "Please answer yes or no.\n"
+				;;
+		esac
+	done
 }
 
-# Function that extracts the contents of a Windows ISO to a specified location
-extract() {
+# Extract the contents of a Windows ISO to a specified location
+extract_iso() {
 	clear
 	cat <<"EOF"
 #####################################
 #  Extracting the ISO to the Drive  #
 #####################################
 EOF
-# here we use 7zip to extract the iso because mounting it cause a lot of issues if we cancel the script 
-# for any reason
 7z x -bso0 -bsp1 "$iso_file" -aoa -o"$usb_mount_point"
-
-# Unmount the Windows ISO file and remove the temporary directory
 clear
 cat <<"EOF"
 ########################################################
@@ -171,15 +134,11 @@ cat <<"EOF"
 #  This Will Take a Long Time!                         #
 ########################################################
 EOF
-
-# Unmount the drive partition
 printf "Synchronizing drive partition %s1...\n" "$drive"
 umount "$drive"1
 rm -rf "$usb_mount_point"
-
-  # Print a message indicating that the installation has finished
-  clear
-  cat <<"EOF"
+clear
+cat <<"EOF"
 ############################
 #  Installation Finished!  #
 ############################
@@ -188,9 +147,8 @@ EOF
 
 main() {
 	welcome "$@"
-	getthedrive "$@"
-	format_drive "$@"
-	extract "$@"
+	get_the_drive "$@"
+	prepare_for_installation "$@"
+	extract_iso "$@"
 }
-
 main "$@"
