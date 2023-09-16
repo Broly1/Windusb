@@ -126,7 +126,7 @@ extract_iso() {
 #  Extracting the ISO to the Drive  #
 #####################################
 EOF
-7z x -bso0 -bsp1 "$iso_file" -aoa -o"$usb_mount_point"
+7z x -bso0 -bsp1 "${iso_file[@]}" -aoa -o"$usb_mount_point"
 clear
 cat <<"EOF"
 ########################################################
