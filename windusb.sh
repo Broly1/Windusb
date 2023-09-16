@@ -66,13 +66,28 @@ fi
 
 # Check for Windows ISO files (Win*.iso) in the current directory
 get_the_iso() {
-	iso_file=(Win*.iso)
-	if [ -e "${iso_file[0]}" ]; then
-		printf "Windows iso found!\n"
+	iso_files=(Win*.iso)
+
+	if [ ${#iso_files[@]} -eq 0 ]; then
+		clear
+		printf "No Windows ISO files found in the current directory.\n"
+		exit 1
+	fi
+
+	if [ ${#iso_files[@]} -eq 1 ]; then
+		iso_path="${iso_files[0]}"
 	else
 		clear
-		printf " Please download the Windows ISO and ensure that you run\n the script from the same directory as the ISO file.\n"
-		exit 1
+		printf "Multiple Windows ISO files found:\n"
+
+		select iso_path in "${iso_files[@]}"; do
+			if [ -n "$iso_path" ]; then
+				printf "Selected Windows ISO: %s\n" "$iso_path"
+				break
+			else
+				printf "Invalid selection. Please choose a valid option.\n"
+			fi
+		done
 	fi
 }
 
@@ -126,7 +141,7 @@ extract_iso() {
 #  Extracting the ISO to the Drive  #
 #####################################
 EOF
-7z x -bso0 -bsp1 "${iso_file[@]}" -aoa -o"$usb_mount_point"
+7z x -bso0 -bsp1 "${iso_path[@]}" -aoa -o"$usb_mount_point"
 clear
 cat <<"EOF"
 ########################################################
