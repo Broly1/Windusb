@@ -44,23 +44,63 @@ select choice in "${lines[@]}"; do
 	fi
 }
 
-# Install required dependencies for WindUSB
-install_dependencies() {
+# Search the system  if the packages we need is already installed
+install_apt_package() {
+    local package_name="$1"
+    if ! dpkg -l "$package_name" > /dev/null 2>&1; then
+        apt update
+        apt install -y "$package_name"
+    else
+        printf "Package %s '$package_name' is already installed (APT).\n"
+    fi
+}
+
+install_dnf_package() {
+    local package_name="$1"
+    if ! rpm -q "$package_name" > /dev/null 2>&1; then
+        dnf install -y "$package_name"
+    else
+        printf "Package %s '$package_name' is already installed (DNF).\n"
+    fi
+}
+
+install_pacman_package() {
+    local package_name="$1"
+    if ! pacman -Q "$package_name" > /dev/null 2>&1; then
+        pacman -Sy --noconfirm --needed "$package_name"
+    else
+        printf "Package %s '$package_name' is already installed (Pacman).\n"
+    fi
+}
+
+# Install the missing packages if we dont have them
+install_missing_packages() {
 	clear
 	cat <<"EOF"
 #############################
 #  Installing Dependencies  #
 #############################
 EOF
+debian_packages=("ntfs-3g" "p7zip-full" "gdisk")
+fedora_packages=("ntfs-3g" "p7zip-plugins" "gdisk")
+arch_packages=("ntfs-3g" "p7zip" "gptfdisk")
+
+# Check for the distribution type and call the appropriate function
 if [[ -f /etc/debian_version ]]; then
-	apt install -y ntfs-3g p7zip-full gdisk
+    for package in "${debian_packages[@]}"; do
+        install_apt_package "$package"
+    done
 elif [[ -f /etc/fedora-release ]]; then
-	dnf install -y ntfs-3g p7zip-plugins gdisk
+    for package in "${fedora_packages[@]}"; do
+        install_dnf_package "$package"
+    done
 elif [[ -f /etc/arch-release ]]; then
-	pacman -Sy --noconfirm --needed ntfs-3g p7zip gptfdisk
+    for package in "${arch_packages[@]}"; do
+        install_pacman_package "$package"
+    done
 else
-	printf "Your distro is not supported!'\n"
-	exit 1
+    printf "Your distro is not supported!\n"
+    exit 1
 fi
 }
 
@@ -119,7 +159,7 @@ prepare_for_installation() {
 		case $yn in
 			[Yy]*)
 				get_the_iso "$@"
-				install_dependencies "$@"
+				install_missing_packages "$@"
 				format_drive "$@"
 				break
 				;;
