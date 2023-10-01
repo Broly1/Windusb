@@ -7,12 +7,15 @@
 # Welcome the user and check if running as root
 welcome() {
 	clear
+
 	cat <<"EOF"
 ########################
 #  Welcome to WindUSB  #
 ########################
+
 Please enter your password!
 EOF
+
 if [[ "$(whoami)" != "root" ]]; then
 	exec sudo -- "$0" "$@"
 fi
@@ -22,12 +25,15 @@ set -e
 # Prompt the user to select a USB drive
 get_the_drive() {
 	clear
+
 	cat <<"EOF"
-################################################
-#  Select a USB Drive from the Following List  #
-################################################
-Please select the USB drive!
+#################################
+#  Please Select the USB Drive  #
+#  From the Following List!     #
+#################################
+
 EOF
+
 readarray -t lines < <(lsblk -p -no name,size,MODEL,VENDOR,TRAN | grep "usb")
 select choice in "${lines[@]}"; do
 	[[ -n $choice ]] || {
@@ -39,68 +45,65 @@ select choice in "${lines[@]}"; do
 	read -r drive _ <<<"$choice"
 
 	if [[ -z "$choice" ]]; then
-		printf "No USB drive found. Please insert the USB drive and try again.\n"
+		printf "No USB drive found. Please insert the USB Drive and try again.\n"
 		exit 1
 	fi
 }
 
 # Search the system  if the packages we need is already installed
 install_apt_package() {
-    local package_name="$1"
-    if ! dpkg -l "$package_name" > /dev/null 2>&1; then
-        apt update
-        apt install -y "$package_name"
-    else
-        printf "Package %s '$package_name' is already installed (APT).\n"
-    fi
+	local package_name="$1"
+	if ! dpkg -l "$package_name" > /dev/null 2>&1; then
+		apt update
+		apt install -y "$package_name"
+	else
+		printf "Package %s '$package_name' is already installed (APT).\n"
+	fi
 }
 
 install_dnf_package() {
-    local package_name="$1"
-    if ! rpm -q "$package_name" > /dev/null 2>&1; then
-        dnf install -y "$package_name"
-    else
-        printf "Package %s '$package_name' is already installed (DNF).\n"
-    fi
+	local package_name="$1"
+	if ! rpm -q "$package_name" > /dev/null 2>&1; then
+		dnf install -y "$package_name"
+	else
+		printf "Package %s '$package_name' is already installed (DNF).\n"
+	fi
 }
 
 install_pacman_package() {
-    local package_name="$1"
-    if ! pacman -Q "$package_name" > /dev/null 2>&1; then
-        pacman -Sy --noconfirm --needed "$package_name"
-    else
-        printf "Package %s '$package_name' is already installed (Pacman).\n"
-    fi
+	local package_name="$1"
+	if ! pacman -Q "$package_name" > /dev/null 2>&1; then
+		pacman -Sy --noconfirm --needed "$package_name"
+	else
+		printf "Package %s '$package_name' is already installed (Pacman).\n"
+	fi
 }
 
 # Install the missing packages if we dont have them
 install_missing_packages() {
 	clear
-	cat <<"EOF"
-#############################
-#  Installing Dependencies  #
-#############################
-EOF
-debian_packages=("ntfs-3g" "p7zip-full" "gdisk")
-fedora_packages=("ntfs-3g" "p7zip-plugins" "gdisk")
-arch_packages=("ntfs-3g" "p7zip" "gptfdisk")
+
+	printf "Installing dependencies\n"
+	debian_packages=("ntfs-3g" "gdisk")
+	fedora_packages=("ntfs-3g" "gdisk")
+	arch_packages=("ntfs-3g" "gptfdisk")
 
 # Check for the distribution type and call the appropriate function
 if [[ -f /etc/debian_version ]]; then
-    for package in "${debian_packages[@]}"; do
-        install_apt_package "$package"
-    done
+	for package in "${debian_packages[@]}"; do
+		install_apt_package "$package"
+	done
 elif [[ -f /etc/fedora-release ]]; then
-    for package in "${fedora_packages[@]}"; do
-        install_dnf_package "$package"
-    done
+	for package in "${fedora_packages[@]}"; do
+		install_dnf_package "$package"
+	done
 elif [[ -f /etc/arch-release ]]; then
-    for package in "${arch_packages[@]}"; do
-        install_pacman_package "$package"
-    done
+	for package in "${arch_packages[@]}"; do
+		install_pacman_package "$package"
+	done
 else
-    printf "Your distro is not supported!\n"
-    exit 1
+	printf "Your distro is not supported!\n"
+	exit 1
 fi
 }
 
@@ -134,27 +137,23 @@ get_the_iso() {
 # Format the selected USB drive and create an NTFS partition
 format_drive() {
 	clear
-	cat <<"EOF"
-#########################
-#  Formatting the Drive #
-#########################
-EOF
-printf "Formatting the selected USB drive and creating a NTFS partition...\n"
-umount "$drive"* || :
-wipefs -af "$drive"
-sgdisk -e "$drive" --new=0:0: -t 0:0700 && partprobe
-sleep 3s
-umount "$drive"* || :
-mkntfs -Q -L WINDUSB "$drive"1
-usb_mount_point="/run/media/wind21192/" 
-mkdir -p "$usb_mount_point"
-mount "$drive"1 "$usb_mount_point"
+
+	printf "Formatting the drive and creating a NTFS partition:\n"
+	umount "$drive"* || :
+	wipefs -af "$drive"
+	sgdisk -e "$drive" --new=0:0: -t 0:0700 && partprobe
+	sleep 3s
+	umount "$drive"* || :
+	mkntfs -Q -L WINDUSB "$drive"1
+	usb_mount_point="/run/media/wind21192/" 
+	mkdir -p "$usb_mount_point"
+	mount "$drive"1 "$usb_mount_point"
 }
 
 # Get everything ready for the Windows installation
 prepare_for_installation() {
 	while true; do
-		printf " Disk %s will be erased\n ntfs-3g & p7zip will be installed\n Do you wish to continue [y/n]? " "$drive"
+		printf " Disk %s will be formatted,\n ntfs-3g & gdisk will be installed.\n Do you want to continue? [y/n]: " "$drive"
 		read -r yn
 		case $yn in
 			[Yy]*)
@@ -176,28 +175,30 @@ prepare_for_installation() {
 # Extract the contents of a Windows ISO to a specified location
 extract_iso() {
 	clear
+
+	printf "Downloading 7zip:\n"
+	wget -O - "https://sourceforge.net/projects/sevenzip/files/7-Zip/23.01/7z2301-linux-x64.tar.xz" | tar -xJf - 7zz
+	chmod +x 7zz
+	clear
+
+	printf "Installing Windows iso to the Drive:\n"
+	./7zz x -bso0 -bsp1 "${iso_path[@]}" -aoa -o"$usb_mount_point"
+	rm -rf 7zz
+	clear
+
 	cat <<"EOF"
-#####################################
-#  Extracting the ISO to the Drive  #
-#####################################
+##################################
+#  Synchronizing, Do Not Remove  #
+#  The Drive or Cancel it        #
+#  This Will Take a Long Time!   #
+##################################
 EOF
-7z x -bso0 -bsp1 "${iso_path[@]}" -aoa -o"$usb_mount_point"
-clear
-cat <<"EOF"
-########################################################
-#  Synchronizing Do Not Remove the Drive or Cancel it  #
-#  This Will Take a Long Time!                         #
-########################################################
-EOF
-printf "Synchronizing drive partition %s1...\n" "$drive"
+
+printf "Synchronizing Drive partition %s1...\n" "$drive"
 umount "$drive"1
 rm -rf "$usb_mount_point"
 clear
-cat <<"EOF"
-############################
-#  Installation Finished!  #
-############################
-EOF
+printf "Installation finished\n"
 }
 
 main() {
