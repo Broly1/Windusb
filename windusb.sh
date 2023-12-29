@@ -16,9 +16,9 @@ welcome() {
 Please enter your password!
 EOF
 
-if [[ "$(whoami)" != "root" ]]; then
-	exec sudo -- "$0" "$@"
-fi
+	if [[ "$(whoami)" != "root" ]]; then
+		exec sudo -- "$0" "$@"
+	fi
 
 }
 
@@ -34,10 +34,10 @@ get_the_drive() {
 
 EOF
 
-readarray -t lines < <(lsblk -p -no name,size,MODEL,VENDOR,TRAN | grep "usb")
-select choice in "${lines[@]}"; do
-	[[ -n $choice ]] || {
-		printf ">>> Invalid selection!\n" >&2
+	readarray -t lines < <(lsblk -p -no name,size,MODEL,VENDOR,TRAN | grep "usb")
+	select choice in "${lines[@]}"; do
+		[[ -n $choice ]] || {
+			printf ">>> Invalid selection!\n" >&2
 			continue
 		}
 		break
@@ -84,15 +84,15 @@ confirm_continue() {
 		printf " Disk %s will be formatted,\n wget ntfs-3g & gdisk will be installed.\n Do you want to continue? [y/n]: " "$drive"
 		read -r yn
 		case $yn in
-			[Yy]*)
-				break
-				;;
-			[Nn]*)
-				exit
-				;;
-			*)
-				printf "Please answer yes or no.\n"
-				;;
+		[Yy]*)
+			break
+			;;
+		[Nn]*)
+			exit
+			;;
+		*)
+			printf "Please answer yes or no.\n"
+			;;
 		esac
 	done
 }
@@ -101,27 +101,33 @@ confirm_continue() {
 install_missing_packages() {
 	clear
 
+	debian_packages=("wget" "ntfs-3g" "gdisk")
+	fedora_packages=("wget" "ntfs-3g" "gdisk")
+	arch_packages=("wget" "ntfs-3g" "gptfdisk")
+
 	printf "Installing dependencies\n"
 
 	if [[ -f /etc/debian_version ]]; then
-		for package in "wget" "ntfs-3g" "gdisk"; do
-			if ! dpkg -s "$package" > /dev/null 2>&1; then
+		for package in "${debian_packages[@]}"; do
+			if ! dpkg -s "$package" >/dev/null 2>&1; then
 				apt update && apt install -y "$package"
 			else
 				printf "Package %s is already installed (APT).\n" "$package"
 			fi
 		done
+
 	elif [[ -f /etc/fedora-release ]]; then
-		for package in "wget" "ntfs-3g" "gdisk"; do
-			if ! rpm -q "$package" > /dev/null 2>&1; then
+		for package in "${fedora_packages[@]}"; do
+			if ! rpm -q "$package" >/dev/null 2>&1; then
 				dnf install -y "$package"
 			else
 				printf "Package %s is already installed (DNF).\n" "$package"
 			fi
 		done
+
 	elif [[ -f /etc/arch-release ]]; then
-		for package in "wget" "ntfs-3g" "gptfdisk"; do
-			if ! pacman -Q "$package" > /dev/null 2>&1; then
+		for package in "${arch_packages[@]}"; do
+			if ! pacman -Q "$package" >/dev/null 2>&1; then
 				pacman -Sy --noconfirm --needed "$package"
 			else
 				printf "Package %s is already installed (Pacman).\n" "$package"
@@ -144,7 +150,7 @@ format_drive() {
 	sleep 3s
 	umount "$drive"* || :
 	mkntfs -Q -L WINDUSB "$drive"1
-	usb_mount_point="/run/media/wind21192/" 
+	usb_mount_point="/run/media/wind21192/"
 	mkdir -p "$usb_mount_point"
 	mount "$drive"1 "$usb_mount_point"
 }
@@ -171,11 +177,11 @@ extract_iso() {
 ##################################
 EOF
 
-printf "Synchronizing Drive partition %s1...\n" "$drive"
-umount "$drive"1
-rm -rf "$usb_mount_point"
-clear
-printf "Installation finished\n"
+	printf "Synchronizing Drive partition %s1...\n" "$drive"
+	umount "$drive"1
+	rm -rf "$usb_mount_point"
+	clear
+	printf "Installation finished\n"
 }
 
 main() {
