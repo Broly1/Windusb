@@ -22,6 +22,18 @@ EOF
 
 }
 
+check_for_internet() {
+    clear
+
+    # Check for internet connectivity
+    if ping -q -c 1 -W 1 google.com >/dev/null; then
+        printf "Internet connection available.\n"
+    else
+        printf "No internet connection. Unable to download dependencies.\n"
+		exit 1
+    fi
+}
+
 # Prompt the user to select a USB drive
 get_the_drive() {
 	clear
@@ -160,6 +172,7 @@ extract_iso() {
 	clear
 
 	printf "Downloading 7zip:\n"
+	check_for_internet "$@"
 	wget -O - "https://sourceforge.net/projects/sevenzip/files/7-Zip/23.01/7z2301-linux-x64.tar.xz" | tar -xJf - 7zz
 	chmod +x 7zz
 	clear
@@ -186,6 +199,7 @@ EOF
 
 main() {
 	welcome "$@"
+	check_for_internet "$@"
 	get_the_drive "$@"
 	get_the_iso "$@"
 	confirm_continue "$@"
