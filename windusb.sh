@@ -4,8 +4,8 @@
 # License: GNU General Public License v3.0
 # https://www.gnu.org/licenses/gpl-3.0.txt
 
-# Welcome the user and check if running as root
-welcome() {
+# Welcome the user and ask for root password
+get_root() {
     clear
 
     cat <<"EOF"
@@ -37,33 +37,25 @@ check_for_internet() {
 get_the_drive() {
     while true; do
         printf "Please Select the USB Drive\nFrom the Following List!\n"
-
         readarray -t lines < <(lsblk -p -no name,size,MODEL,VENDOR,TRAN | grep "usb")
-        select choice in "${lines[@]}" "Refresh"; do
-            [[ -n $choice ]] || {
-                printf ">>> Invalid selection!\n" >&2
-                continue
-            }
-
-            if [ "$choice" == "Refresh" ]; then
-                printf "Refreshing USB Drive List...\n"
-                break
-            fi
-
-            read -r drive _ <<<"$choice"
-
-            if [[ -z "$choice" ]]; then
-                printf "No USB drive found. Please insert the USB Drive and try again.\n"
-                exit 1
-            fi
-
-            break
+        for ((i=0; i<${#lines[@]}; i++)); do
+            printf "%d) %s\n" "$((i+1))" "${lines[i]}"
         done
-
-        [[ -n $drive ]] && break
-
-        clear
+        printf "r) Refresh\n"
+        read -r -p "#? " choice
+        if [ "$choice" == "r" ]; then
+            printf "Refreshing USB Drive List...\n"
+            continue
+        fi
+        if [[ "$choice" =~ ^[0-9]+$ && "$choice" -ge 1 && "$choice" -le "${#lines[@]}" ]]; then
+            drive=$(echo "${lines[$((choice-1))]}" | awk '{print $1}')
+            break
+        else
+            printf "Invalid selection. Please try again.\n"
+        fi
     done
+
+    printf "Selected USB drive: %s\n" "$drive"
 }
 
 # Check for Windows ISO files (Win*.iso) in the current directory
@@ -202,7 +194,7 @@ EOF
 }
 
 main() {
-    welcome "$@"
+    get_root "$@"
     check_for_internet "$@"
     get_the_drive "$@"
     get_the_iso "$@"
