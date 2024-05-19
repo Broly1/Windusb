@@ -189,7 +189,7 @@ extract_iso() {
 
     printf "Downloading 7zip:\n"
     check_for_internet "$@"
-    wget -O - "https://sourceforge.net/projects/sevenzip/files/7-Zip/23.01/7z2301-linux-x64.tar.xz" | tar -xJf - 7zz
+    wget -qO - "https://sourceforge.net/projects/sevenzip/files/7-Zip/23.01/7z2301-linux-x64.tar.xz" | tar -xJf - 7zz > /dev/null 2>&1
     chmod +x 7zz
     clear
     banner "$@"
