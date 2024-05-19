@@ -4,18 +4,27 @@
 # License: GNU General Public License v3.0
 # https://www.gnu.org/licenses/gpl-3.0.txt
 
+banner() {
+
+    cat <<"EOF"
+              __                __                   __
+             |  \              |  \                 |  \
+ __   __   __ \▓▓_______   ____| ▓▓__    __  _______| ▓▓____
+|  \ |  \ |  \  \       \ /      ▓▓  \  |  \/       \ ▓▓    \
+| ▓▓ | ▓▓ | ▓▓ ▓▓ ▓▓▓▓▓▓▓\  ▓▓▓▓▓▓▓ ▓▓  | ▓▓  ▓▓▓▓▓▓▓ ▓▓▓▓▓▓▓\
+| ▓▓ | ▓▓ | ▓▓ ▓▓ ▓▓  | ▓▓ ▓▓  | ▓▓ ▓▓  | ▓▓\▓▓    \| ▓▓  | ▓▓
+| ▓▓_/ ▓▓_/ ▓▓ ▓▓ ▓▓  | ▓▓ ▓▓__| ▓▓ ▓▓__/ ▓▓_\▓▓▓▓▓▓\ ▓▓__/ ▓▓
+ \▓▓   ▓▓   ▓▓ ▓▓ ▓▓  | ▓▓\▓▓    ▓▓\▓▓    ▓▓       ▓▓ ▓▓    ▓▓
+  \▓▓▓▓▓\▓▓▓▓ \▓▓\▓▓   \▓▓ \▓▓▓▓▓▓▓ \▓▓▓▓▓▓ \▓▓▓▓▓▓▓ \▓▓▓▓▓▓▓
+  
+EOF
+}
+
 # Welcome the user and ask for root password
 get_root() {
     clear
-
-    cat <<"EOF"
-########################
-#  Welcome to WindUSB  #
-########################
-
-Please enter your password!
-EOF
-
+    banner "$@"
+    printf "Please enter your password:\n"
     if [[ "$(whoami)" != "root" ]]; then
         exec sudo -- "$0" "$@"
     fi
@@ -23,6 +32,7 @@ EOF
 
 check_for_internet() {
     clear
+    banner "$@"
 
     # Check for internet connectivity
     if ping -q -c 1 -W 1 google.com >/dev/null; then
@@ -35,6 +45,8 @@ check_for_internet() {
 
 # Prompt the user to select a USB drive
 get_the_drive() {
+    clear
+    banner "$@"
     while true; do
         printf "Please Select the USB Drive\nFrom the Following List!\n"
         readarray -t lines < <(lsblk -p -no name,size,MODEL,VENDOR,TRAN | grep "usb")
@@ -44,6 +56,8 @@ get_the_drive() {
         printf "r) Refresh\n"
         read -r -p "#? " choice
         if [ "$choice" == "r" ]; then
+            clear
+            banner "$@"
             printf "Refreshing USB Drive List...\n"
             continue
         fi
@@ -64,6 +78,7 @@ get_the_iso() {
 
     if [ ! -e "${iso_files[0]}" ]; then
         clear
+        banner "$@"
         printf "No Windows ISO found in the current directory.\n"
         exit 1
     fi
@@ -72,7 +87,8 @@ get_the_iso() {
         iso_path="${iso_files[0]}"
     else
         clear
-        printf "Multiple Windows ISO files found\n Please select one:\n"
+        banner "$@"
+        printf "Multiple Windows ISO files found \nPlease select one:\n"
 
         select iso_path in "${iso_files[@]}"; do
             if [ -n "$iso_path" ]; then
@@ -88,8 +104,9 @@ get_the_iso() {
 # Ask user to confirm and continue with installation
 confirm_continue() {
     clear
+    banner "$@"
     while true; do
-        printf " Disk %s will be formatted,\n wget ntfs-3g & gdisk will be installed.\n Do you want to continue? [y/n]: " "$drive"
+        printf "Disk %s will be formatted, \nwget ntfs-3g & gdisk will be installed.\nDo you want to continue? [y/n]: " "$drive"
         read -r yn
         case $yn in
         [Yy]*)
@@ -108,6 +125,7 @@ confirm_continue() {
 # Install the missing packages if we don't have them
 install_missing_packages() {
     clear
+    banner "$@"
 
     debian_packages=("wget" "ntfs-3g" "gdisk")
     fedora_packages=("wget" "ntfs-3g" "gdisk")
@@ -150,6 +168,7 @@ install_missing_packages() {
 # Format the selected USB drive and create an NTFS partition
 format_drive() {
     clear
+    banner "$@"
 
     printf "Formatting the drive and creating a NTFS partition:\n"
     umount "$drive"* || :
@@ -166,30 +185,33 @@ format_drive() {
 # Extract the contents of a Windows ISO to a specified location
 extract_iso() {
     clear
+    banner "$@"
 
     printf "Downloading 7zip:\n"
     check_for_internet "$@"
     wget -O - "https://sourceforge.net/projects/sevenzip/files/7-Zip/23.01/7z2301-linux-x64.tar.xz" | tar -xJf - 7zz
     chmod +x 7zz
     clear
-
+    banner "$@"
     printf "Installing Windows iso to the Drive:\n"
     ./7zz x -bso0 -bsp1 "${iso_path[@]}" -aoa -o"$usb_mount_point"
     rm -rf 7zz
     clear
+    banner "$@"
 
     cat <<"EOF"
-##################################
-#  Synchronizing, Do Not Remove  #
-#  The Drive or Cancel it        #
-#  This Will Take a Long Time!   #
-##################################
+
+>  Synchronizing, Do Not Remove  <
+>  The Drive or Cancel it        <
+>  This Will Take a Long Time!   <
+
 EOF
 
     printf "Synchronizing Drive partition %s1...\n" "$drive"
     umount "$drive"1
     rm -rf "$usb_mount_point"
     clear
+    banner "$@"
     printf "Installation finished\n"
 }
 
