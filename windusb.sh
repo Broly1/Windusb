@@ -43,7 +43,7 @@ check_for_internet() {
     fi
 }
 
-# Prompt the user to select a USB drive
+# Get the USB drive selected by the user.
 get_the_drive() {
     clear
     banner "$@"
@@ -55,21 +55,20 @@ get_the_drive() {
         done
         printf "r) Refresh\n"
         read -r -p "#? " choice
+        clear
+        banner "$@"
         if [ "$choice" == "r" ]; then
-            clear
-            banner "$@"
             printf "Refreshing USB Drive List...\n"
             continue
         fi
         if [[ "$choice" =~ ^[0-9]+$ && "$choice" -ge 1 && "$choice" -le "${#lines[@]}" ]]; then
-            drive=$(echo "${lines[$((choice-1))]}" | awk '{print $1}')
+            selected_drive_line="${lines[$((choice-1))]}"
+            drive=$(echo "$selected_drive_line" | awk '{print $1}')
             break
         else
             printf "Invalid selection. Please try again.\n"
         fi
     done
-
-    printf "Selected USB drive: %s\n" "$drive"
 }
 
 # Check for Windows ISO files (Win*.iso) in the current directory
@@ -106,7 +105,7 @@ confirm_continue() {
     clear
     banner "$@"
     while true; do
-        printf "Disk %s will be formatted, \nwget ntfs-3g & gdisk will be installed.\nDo you want to continue? [y/n]: " "$drive"
+        printf "Warning the drive below will be erased: \n'%s' \n\nThe following tools will be installed: \nwget ntfs-3g & gdisk.\nDo you want to proceed? [y/n]: " "$selected_drive_line"
         read -r yn
         case $yn in
         [Yy]*)
