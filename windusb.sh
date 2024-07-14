@@ -213,11 +213,23 @@ extract_iso() {
     printf "Downloading 7zip:\n"
     check_for_internet "$@"
     download_and_extract_7zz "$@"
+
+    if [[ ! -f 7zz ]]; then
+        printf "Error: 7zz was not downloaded or is missing.\n"
+        exit 1
+    fi
+
     chmod +x 7zz
     clear
     banner "$@"
+
     printf "Installing Windows iso to the Drive:\n"
-    ./7zz x -bso0 -bsp1 "${iso_path[@]}" -aoa -o"$usb_mount_point"
+    if ! ./7zz x -bso0 -bsp1 "${iso_path[@]}" -aoa -o"$usb_mount_point"; then
+        printf "Error: Failed to extract the ISO file.\n"
+        rm -rf 7zz
+        exit 1
+    fi
+
     rm -rf 7zz
     clear
     banner "$@"
@@ -231,7 +243,11 @@ extract_iso() {
 EOF
 
     printf "Synchronizing Drive partition %s1...\n" "$drive"
-    umount "$drive"1
+    if ! umount "$drive"1; then
+        printf "Error: Failed to unmount the drive.\n"
+        exit 1
+    fi
+
     rm -rf "$usb_mount_point"
     clear
     banner "$@"
