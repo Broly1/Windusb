@@ -223,7 +223,7 @@ extract_iso() {
     clear
     banner "$@"
 
-    printf "Installing Windows iso to the Drive:\n"
+    printf "Extracting Windows iso:\n"
     if ! ./7zz x -bso0 -bsp1 "${iso_path[@]}" -aoa -o"$usb_mount_point"; then
         printf "Error: Failed to extract the ISO file.\n"
         rm -rf 7zz
@@ -234,11 +234,15 @@ extract_iso() {
     clear
     banner "$@"
 
-    cat <<"EOF"
+cat <<"EOF"
 
->  Synchronizing, Do Not Remove  <
->  The Drive or Cancel it        <
->  This Will Take a Long Time!   <
+>  Please Wait: Synchronization in Progress  <
+>  Do Not Remove the Drive or Cancel the Process  <
+
+Note: USB 2.0 drives are slower than USB 3.0 and SSDs.
+This process may take up to 25-30 minutes on slower drives.
+You may not see any immediate progress, but rest assured,
+the process is ongoing.
 
 EOF
 
