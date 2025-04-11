@@ -4,207 +4,229 @@
 # License: GNU General Public License v3.0
 # https://www.gnu.org/licenses/gpl-3.0.txt
 
-# Welcome the user and check if running as root
-welcome() {
-	clear
+# Configuration
+log="windusb_log.txt"
+usb_mount_point=$(mktemp -d -t windusb_usb_XXXX)
+iso_mount_dir=$(mktemp -d -t windusb_iso_XXXX)
 
-	cat <<"EOF"
-########################
-#  Welcome to WindUSB  #
-########################
+# Packages (added wimlib for splitting support)
+debian_packages=("curl" "rsync" "wget" "gdisk" "wimtools")
+fedora_packages=("curl" "rsync" "wget" "gdisk" "wimlib-utils")
+arch_packages=("curl" "rsync" "wget" "gptfdisk" "wimlib")
 
-Please enter your password!
-EOF
-
-if [[ "$(whoami)" != "root" ]]; then
-	exec sudo -- "$0" "$@"
-fi
-set -e
+# Log errors and exit
+log_error() {
+    local message="$1"
+    printf "ERROR: %s\n" "$message" | tee -a "$log"
+    exit 1
 }
 
-# Prompt the user to select a USB drive
+# Display banner
+banner() {
+    cat <<"EOF"
+              __                __                   __
+             |  \              |  \                 |  \
+ __   __   __ \▓▓_______   ____| ▓▓__    __  _______| ▓▓____
+|  \ |  \ |  \  \       \ /      ▓▓  \  |  \/       \ ▓▓    \
+| ▓▓ | ▓▓ | ▓▓ ▓▓ ▓▓▓▓▓▓▓\  ▓▓▓▓▓▓▓ ▓▓  | ▓▓  ▓▓▓▓▓▓▓ ▓▓▓▓▓▓▓\
+| ▓▓ | ▓▓ | ▓▓ ▓▓ ▓▓  | ▓▓ ▓▓  | ▓▓ ▓▓  | ▓▓\▓▓    \| ▓▓  | ▓▓
+| ▓▓_/ ▓▓_/ ▓▓ ▓▓ ▓▓  | ▓▓ ▓▓__| ▓▓ ▓▓__/ ▓▓_\▓▓▓▓▓▓\ ▓▓__/ ▓▓
+ \▓▓   ▓▓   ▓▓ ▓▓ ▓▓  | ▓▓\▓▓    ▓▓\▓▓    ▓▓       ▓▓ ▓▓    ▓▓
+  \▓▓▓▓▓\▓▓▓▓ \▓▓\▓▓   \▓▓ \▓▓▓▓▓▓▓ \▓▓▓▓▓▓ \▓▓▓▓▓▓▓ \▓▓▓▓▓▓▓
+
+EOF
+}
+
+cleanup() {
+  umount "$usb_mount_point" 2>/dev/null
+  umount "$iso_mount_dir" 2>/dev/null
+  rm -rf "$usb_mount_point" "$iso_mount_dir"
+}
+
+# Welcome the user and ask for root password
+get_root() {
+    clear
+    banner
+    if [[ "$(whoami)" != "root" ]]; then
+        printf "Please enter your password to continue:\n"
+        exec sudo -- "$0" "$@"
+    fi
+}
+
+# Check for internet connectivity
+check_for_internet() {
+    clear
+    banner
+
+    if ! ping -q -c 1 -W 1 google.com >/dev/null; then
+        log_error "No internet connection. Unable to download dependencies."
+    fi
+}
+
+# Get the USB drive selected by the user
 get_the_drive() {
-	clear
+    clear
+    banner
 
-	cat <<"EOF"
-#################################
-#  Please Select the USB Drive  #
-#  From the Following List!     #
-#################################
+    while true; do
+        printf "Please select the USB drive from the following list:\n"
+        readarray -t lines < <(lsblk -p -no name,size,MODEL,VENDOR,TRAN | grep "usb")
+        for ((i=0; i<${#lines[@]}; i++)); do
+            printf "%d) %s\n" "$((i+1))" "${lines[i]}"
+        done
+        printf "r) Refresh\n"
+        read -r -p "#? " choice
 
-EOF
+        clear
+        banner
 
-readarray -t lines < <(lsblk -p -no name,size,MODEL,VENDOR,TRAN | grep "usb")
-select choice in "${lines[@]}"; do
-	[[ -n $choice ]] || {
-		printf ">>> Invalid selection!\n" >&2
-			continue
-		}
-		break
-	done
-	read -r drive _ <<<"$choice"
+        if [[ "$choice" == "r" ]]; then
+            printf "Refreshing USB drive list...\n"
+            continue
+        fi
 
-	if [[ -z "$choice" ]]; then
-		printf "No USB drive found. Please insert the USB Drive and try again.\n"
-		exit 1
-	fi
+        if [[ "$choice" =~ ^[0-9]+$ && "$choice" -ge 1 && "$choice" -le "${#lines[@]}" ]]; then
+            selected_drive_line="${lines[$((choice-1))]}"
+            drive=$(echo "$selected_drive_line" | awk '{print $1}')
+            break
+        else
+            printf "Invalid selection. Please try again.\n"
+        fi
+    done
 }
 
-# Search the system  if the packages we need is already installed
-install_apt_package() {
-	local package_name="$1"
-	if ! dpkg -l "$package_name" > /dev/null 2>&1; then
-		apt update
-		apt install -y "$package_name"
-	else
-		printf "Package %s '$package_name' is already installed (APT).\n"
-	fi
-}
-
-install_dnf_package() {
-	local package_name="$1"
-	if ! rpm -q "$package_name" > /dev/null 2>&1; then
-		dnf install -y "$package_name"
-	else
-		printf "Package %s '$package_name' is already installed (DNF).\n"
-	fi
-}
-
-install_pacman_package() {
-	local package_name="$1"
-	if ! pacman -Q "$package_name" > /dev/null 2>&1; then
-		pacman -Sy --noconfirm --needed "$package_name"
-	else
-		printf "Package %s '$package_name' is already installed (Pacman).\n"
-	fi
-}
-
-# Install the missing packages if we dont have them
-install_missing_packages() {
-	clear
-
-	printf "Installing dependencies\n"
-	debian_packages=("ntfs-3g" "gdisk")
-	fedora_packages=("ntfs-3g" "gdisk")
-	arch_packages=("ntfs-3g" "gptfdisk")
-
-# Check for the distribution type and call the appropriate function
-if [[ -f /etc/debian_version ]]; then
-	for package in "${debian_packages[@]}"; do
-		install_apt_package "$package"
-	done
-elif [[ -f /etc/fedora-release ]]; then
-	for package in "${fedora_packages[@]}"; do
-		install_dnf_package "$package"
-	done
-elif [[ -f /etc/arch-release ]]; then
-	for package in "${arch_packages[@]}"; do
-		install_pacman_package "$package"
-	done
-else
-	printf "Your distro is not supported!\n"
-	exit 1
-fi
-}
-
-# Check for Windows ISO files (Win*.iso) in the current directory
-get_the_iso() {
-	iso_files=(Win*.iso)
-
-	if [ ${#iso_files[@]} -eq 0 ]; then
-		clear
-		printf "No Windows ISO files found in the current directory.\n"
-		exit 1
-	fi
-
-	if [ ${#iso_files[@]} -eq 1 ]; then
-		iso_path="${iso_files[0]}"
-	else
-		clear
-		printf "Multiple Windows ISO files found:\n"
-
-		select iso_path in "${iso_files[@]}"; do
-			if [ -n "$iso_path" ]; then
-				printf "Selected Windows ISO: %s\n" "$iso_path"
-				break
-			else
-				printf "Invalid selection. Please choose a valid option.\n"
-			fi
-		done
-	fi
-}
-
-# Format the selected USB drive and create an NTFS partition
+# Format the selected USB drive as FAT32
 format_drive() {
-	clear
-
-	printf "Formatting the drive and creating a NTFS partition:\n"
-	umount "$drive"* || :
-	wipefs -af "$drive"
-	sgdisk -e "$drive" --new=0:0: -t 0:0700 && partprobe
-	sleep 3s
-	umount "$drive"* || :
-	mkntfs -Q -L WINDUSB "$drive"1
-	usb_mount_point="/run/media/wind21192/" 
-	mkdir -p "$usb_mount_point"
-	mount "$drive"1 "$usb_mount_point"
+    clear
+    banner
+    printf "Formatting the drive as FAT32 (for WIM splitting compatibility)...\n"
+    umount "$drive"* 2>/dev/null || :
+    wipefs -af "$drive" || log_error "Failed to wipe filesystem"
+    if ! sgdisk -e "$drive" --new=0:0: -t 0:0700 && partprobe; then
+        log_error "Failed to create partition"
+    fi
+    sleep 3
+    mkfs.fat -F32 "${drive}1" || log_error "Failed to format as FAT32"
+    mount "${drive}1" "$usb_mount_point" || log_error "Failed to mount USB"
 }
 
-# Get everything ready for the Windows installation
-prepare_for_installation() {
-	while true; do
-		printf " Disk %s will be formatted,\n ntfs-3g & gdisk will be installed.\n Do you want to continue? [y/n]: " "$drive"
-		read -r yn
-		case $yn in
-			[Yy]*)
-				get_the_iso "$@"
-				install_missing_packages "$@"
-				format_drive "$@"
-				break
-				;;
-			[Nn]*)
-				exit
-				;;
-			*)
-				printf "Please answer yes or no.\n"
-				;;
-		esac
-	done
-}
-
-# Extract the contents of a Windows ISO to a specified location
 extract_iso() {
-	clear
+    iso_files=(Win*.iso)
+    if [ ! -e "${iso_files[0]}" ]; then
+        clear
+        banner
+        log_error "No Windows ISO found in the current directory."
+    fi
 
-	printf "Downloading 7zip:\n"
-	wget -O - "https://sourceforge.net/projects/sevenzip/files/7-Zip/23.01/7z2301-linux-x64.tar.xz" | tar -xJf - 7zz
-	chmod +x 7zz
-	clear
+    if [ ${#iso_files[@]} -eq 1 ]; then
+        iso_path="${iso_files[0]}"
+    else
+        clear
+        banner
+        printf "Multiple Windows ISO files found. Please select one:\n"
+        select iso_path in "${iso_files[@]}"; do
+            [ -n "$iso_path" ] && break || printf "Invalid selection.\n"
+        done
+    fi
 
-	printf "Installing Windows iso to the Drive:\n"
-	./7zz x -bso0 -bsp1 "${iso_path[@]}" -aoa -o"$usb_mount_point"
-	rm -rf 7zz
-	clear
+# Forcefully unmount the mount point if mounted
+if mountpoint -q "$iso_mount_dir"; then
+    printf "Unmounting existing mount...\n"
+    umount -f "$iso_mount_dir" || {
+        printf "Force unmount failed, trying lazy unmount...\n"
+        umount -l "$iso_mount_dir"
+    }
+fi
 
-	cat <<"EOF"
-##################################
-#  Synchronizing, Do Not Remove  #
-#  The Drive or Cancel it        #
-#  This Will Take a Long Time!   #
-##################################
+attached_loops=$(losetup -j "$iso_path" 2>/dev/null | cut -d: -f1)
+if [ -n "$attached_loops" ]; then
+    printf "Detaching existing loop devices for the ISO...\n"
+    for loop in $attached_loops; do
+        losetup -d "$loop"
+    done
+fi
+
+max_retries=3
+for ((i=1; i<=max_retries; i++)); do
+    if mount -o loop,ro "$iso_path" "$iso_mount_dir"; then
+        break
+    else
+        if [[ $i -eq max_retries ]]; then
+            log_error "Failed to mount ISO after $max_retries attempts"
+            exit 1
+        fi
+        sleep 1
+        printf "Retrying mount (%d/%d)...\n" "$i" "$max_retries"
+    fi
+done
+
+    # Split the install.wim file to fit into the FAT32 limitation
+    printf "Splitting install.wim...\n"
+    mkdir -p "$usb_mount_point/sources"
+    wimlib-imagex split "$iso_mount_dir/sources/install.wim" \
+        "$usb_mount_point/sources/install.swm" 3800 || log_error "Failed to split WIM"
+
+    clear
+    banner
+    printf "Copying files...\n"
+    rsync -rltD --no-owner --no-group --modify-window=1 --info=progress2 --human-readable \
+        --exclude="sources/install.wim" \
+        "$iso_mount_dir/" "$usb_mount_point/" 2>&1 || {
+        if [ $? -eq 23 ]; then
+            printf "\nNote: Some attributes not preserved (normal for FAT32)\n"
+        else
+            log_error "File copy failed"
+        fi
+    }
+
+    cat <<"EOF"
+
+>  Important: Copying Windows Files to USB Drive  <
+>  Do Not Remove the Drive or Interrupt the Process  <
+
+    This process involves copying a large amount of data to the USB drive. 
+    On slower USB 2.0 drives, it can take up to 20 to 30 minutes to complete. 
+    Using a USB 3.0 drive or an external SSD will significantly reduce the time required.
+
+    Please be patient and ensure the drive remains connected throughout the process 
+    to avoid data corruption or an incomplete installation.
+
 EOF
 
-printf "Synchronizing Drive partition %s1...\n" "$drive"
-umount "$drive"1
-rm -rf "$usb_mount_point"
-clear
-printf "Installation finished\n"
+    printf "Synchronizing drive partition %s1...\n" "$drive"
+
+    umount "$drive"1 &
+    umount_pid=$!
+
+    bar_size=40
+    progress=""
+
+    while kill -0 $umount_pid 2>/dev/null; do
+        progress+="="
+        if [[ ${#progress} -ge $bar_size ]]; then
+            progress=""
+        fi
+        printf "\r\033[K[%s]" "$(printf "%-${bar_size}s" "$progress")"
+        sleep 0.2
+    done
+    printf "\r[%s] Done!\n" "$(printf "%-${bar_size}s" "$progress")"
+
+    wait $umount_pid
+    if ! wait $umount_pid; then
+        log_error "Failed to unmount the drive."
+    fi
+    trap cleanup EXIT
+    printf "\nWindows installation prepared successfully!\n"
 }
 
 main() {
-	welcome "$@"
-	get_the_drive "$@"
-	prepare_for_installation "$@"
-	extract_iso "$@"
+    get_root "$@"
+    check_for_internet "$@"
+    get_the_drive "$@"
+    get_the_iso "$@"
+    install_missing_packages "$@"
+    format_drive "$@"
+    extract_iso "$@"
 }
-main "$@"
+
+main "$@" | tee "$log"
