@@ -127,7 +127,7 @@ install_missing_packages() {
     if [[ -f /etc/debian_version ]]; then
         for package in "${debian_packages[@]}"; do
             if ! dpkg -s "$package" >/dev/null 2>&1; then
-                if ! apt update && apt install -y "$package"; then
+                if ! apt-get update || ! apt-get install -y "$package"; then
                     log_error "Failed to install $package"
                 fi
             else
