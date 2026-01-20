@@ -177,6 +177,10 @@ format_drive() {
     mount "${drive}1" "$usb_mount_point" || log_error "Failed to mount USB"
 }
 
+get_dirty_kb() {
+    grep -E "^(Dirty|Writeback):" /proc/meminfo | awk '{sum+=$2} END {print sum}'
+}
+
 extract_iso() {
     iso_files=(Win*.iso)
     if [ ! -e "${iso_files[0]}" ]; then
@@ -230,7 +234,7 @@ done
     printf "Splitting install.wim...\n"
     mkdir -p "$usb_mount_point/sources"
     wimlib-imagex split "$iso_mount_dir/sources/install.wim" \
-        "$usb_mount_point/sources/install.swm" 3800 || log_error "Failed to split WIM"
+        "$usb_mount_point/sources/install.swm" 3400 || log_error "Failed to split WIM"
     clear
     banner
     printf "Copying files...\n"
@@ -259,23 +263,49 @@ done
 EOF
 
     printf "Synchronizing drive partition %s1...\n" "$drive"
-    umount "$drive"1 &
-    umount_pid=$!
-    bar_size=40
-    progress=""
-    while kill -0 $umount_pid 2>/dev/null; do
-        progress+="="
-        if [[ ${#progress} -ge $bar_size ]]; then
-            progress=""
+    
+    local total_to_sync_kb=$(du -s "$usb_mount_point" | awk '{print $1}')
+    local initial_dirty=$(get_dirty_kb)
+    
+    local ref_kb=$initial_dirty
+    if (( ref_kb < 1024 )); then ref_kb=1024; fi
+
+    umount "$usb_mount_point" &
+    local upid=$!
+    local spin='-\|/'
+    local i=0
+
+    while kill -0 $upid 2>/dev/null; do
+        local cur_dirty=$(get_dirty_kb)
+        
+        # Human readable math
+        local rem_txt
+        if (( cur_dirty > 1048576 )); then
+            rem_txt=$(awk "BEGIN {printf \"%.2f GB\", $cur_dirty/1048576}")
+        else
+            rem_txt=$(awk "BEGIN {printf \"%.1f MB\", $cur_dirty/1024}")
         fi
-        printf "\r\033[K[%s]" "$(printf "%-${bar_size}s" "$progress")"
-        sleep 0.2
+
+        # Percentage math (clamped between 92 and 99.8)
+        local prog=$(awk "BEGIN {p = 92 + ((1.0 - ($cur_dirty / $ref_kb)) * 7.8); if (p > 99.8) p=99.8; if (p < 92) p=92; printf \"%.1f\", p}")
+        
+        # Logic for when buffer is essentially clear but umount is still busy
+        if (( cur_dirty <= 512 )); then
+            i=$(( (i+1) % 4 ))
+            printf "\r\033[KFinalizing... %s [99.9%%]" "${spin:$i:1}"
+        else
+            printf "\r\033[KFlushing Cache: %s remaining [%s%%]" "$rem_txt" "$prog"
+        fi
+        
+        sleep 0.1
     done
-    printf "\r[%s] Done!\n" "$(printf "%-${bar_size}s" "$progress")"
-    wait $umount_pid
-    if ! wait $umount_pid; then
+
+    wait $upid
+    if [ $? -ne 0 ]; then
         log_error "Failed to unmount the drive."
     fi
+    
+    printf "\r\033[KFinalizing... 100%% Done!\n"
     trap cleanup EXIT
     printf "\nWindows installation prepared successfully!\n"
 }
