@@ -5,19 +5,22 @@
 # https://www.gnu.org/licenses/gpl-3.0.txt
 
 # Configuration
-log="windusb_log.txt"
-usb_mount_point=$(mktemp -d -t windusb_usb_XXXX)
-iso_mount_dir=$(mktemp -d -t windusb_iso_XXXX)
+USB_MOUNT_POINT=$(mktemp -d -t windusb_usb_XXXX)
+ISO_MOUNT_DIR=$(mktemp -d -t windusb_iso_XXXX)
+
+# Global variables to store user selections
+SELECTED_DRIVE=""
+SELECTED_ISO_PATH=""
 
 # Install missing packages
-debian_packages=("curl" "rsync" "wget" "gdisk" "wimtools")
-fedora_packages=("curl" "rsync" "wget" "gdisk" "wimlib-utils")
-arch_packages=("curl" "rsync" "wget" "gptfdisk" "wimlib")
+DEBIAN_PACKAGES=("curl" "rsync" "wget" "gdisk" "wimtools")
+FEDORA_PACKAGES=("curl" "rsync" "wget" "gdisk" "wimlib-utils")
+ARCH_PACKAGES=("curl" "rsync" "wget" "gptfdisk" "wimlib")
 
 # Log errors and exit
 log_error() {
     local message="$1"
-    printf "ERROR: %s\n" "$message" | tee -a "$log"
+    printf "ERROR: %s\n" "$message"
     exit 1
 }
 
@@ -38,9 +41,9 @@ EOF
 }
 
 cleanup() {
-  umount "$usb_mount_point" 2>/dev/null
-  umount "$iso_mount_dir" 2>/dev/null
-  rm -rf "$usb_mount_point" "$iso_mount_dir"
+    umount "$USB_MOUNT_POINT" 2>/dev/null
+    umount "$ISO_MOUNT_DIR" 2>/dev/null
+    rm -rf "$USB_MOUNT_POINT" "$ISO_MOUNT_DIR"
 }
 
 # Welcome the user and ask for root password
@@ -64,6 +67,7 @@ check_for_internet() {
 
 # Get the USB drive selected by the user
 get_the_drive() {
+    local lines i choice selected_drive_line
     clear
     banner
     while true; do
@@ -83,7 +87,7 @@ get_the_drive() {
 
         if [[ "$choice" =~ ^[0-9]+$ && "$choice" -ge 1 && "$choice" -le "${#lines[@]}" ]]; then
             selected_drive_line="${lines[$((choice-1))]}"
-            drive=$(echo "$selected_drive_line" | awk '{print $1}')
+            SELECTED_DRIVE=$(echo "$selected_drive_line" | awk '{print $1}')
             break
         else
             printf "Invalid selection. Please try again.\n"
@@ -93,24 +97,25 @@ get_the_drive() {
 
 # Check for Windows ISO files (Win*.iso) in the current directory
 get_the_iso() {
-    iso_files=(Win*.iso)
+    local iso_files=(Win*.iso)
+    local iso_choice
 
-    if [ ! -e "${iso_files[0]}" ]; then
+    if [[ ! -e "${iso_files[0]}" ]]; then
         clear
         banner
         log_error "No Windows ISO found in the current directory."
     fi
 
-    if [ ${#iso_files[@]} -eq 1 ]; then
-        iso_path="${iso_files[0]}"
+    if [[ ${#iso_files[@]} -eq 1 ]]; then
+        SELECTED_ISO_PATH="${iso_files[0]}"
     else
         clear
         banner
         printf "Multiple Windows ISO files found. Please select one:\n"
-
-        select iso_path in "${iso_files[@]}"; do
-            if [ -n "$iso_path" ]; then
-                printf "Selected Windows ISO: %s\n" "$iso_path"
+        select iso_choice in "${iso_files[@]}"; do
+            if [[ -n "$iso_choice" ]]; then
+                printf "Selected Windows ISO: %s\n" "$iso_choice"
+                SELECTED_ISO_PATH="$iso_choice"
                 break
             else
                 printf "Invalid selection. Please choose a valid option.\n"
@@ -121,12 +126,13 @@ get_the_iso() {
 
 # Install missing packages
 install_missing_packages() {
+    local package
     clear
     banner
     printf "Installing dependencies...\n"
 
     if [[ -f /etc/debian_version ]]; then
-        for package in "${debian_packages[@]}"; do
+        for package in "${DEBIAN_PACKAGES[@]}"; do
             if ! dpkg -s "$package" >/dev/null 2>&1; then
                 if ! apt-get update || ! apt-get install -y "$package"; then
                     log_error "Failed to install $package"
@@ -135,9 +141,8 @@ install_missing_packages() {
                 printf "Package %s is already installed (APT).\n" "$package"
             fi
         done
-
     elif [[ -f /etc/fedora-release ]]; then
-        for package in "${fedora_packages[@]}"; do
+        for package in "${FEDORA_PACKAGES[@]}"; do
             if ! rpm -q "$package" >/dev/null 2>&1; then
                 if ! dnf install -y "$package"; then
                     log_error "Failed to install $package"
@@ -146,9 +151,8 @@ install_missing_packages() {
                 printf "Package %s is already installed (DNF).\n" "$package"
             fi
         done
-
     elif [[ -f /etc/arch-release ]]; then
-        for package in "${arch_packages[@]}"; do
+        for package in "${ARCH_PACKAGES[@]}"; do
             if ! pacman -Q "$package" >/dev/null 2>&1; then
                 if ! pacman -Sy --noconfirm --needed "$package"; then
                     log_error "Failed to install $package"
@@ -167,14 +171,14 @@ format_drive() {
     clear
     banner
     printf "Formatting the drive as FAT32 (for WIM splitting compatibility)...\n"
-    umount "$drive"* 2>/dev/null || :
-    wipefs -af "$drive" || log_error "Failed to wipe filesystem"
-    if ! sgdisk -e "$drive" --new=0:0: -t 0:0700 && partprobe; then
+    umount "$SELECTED_DRIVE"* 2>/dev/null || :
+    wipefs -af "$SELECTED_DRIVE" || log_error "Failed to wipe filesystem"
+    if ! sgdisk -e "$SELECTED_DRIVE" --new=0:0: -t 0:0700 && partprobe; then
         log_error "Failed to create partition"
     fi
     sleep 3
-    mkfs.fat -F32 "${drive}1" || log_error "Failed to format as FAT32"
-    mount "${drive}1" "$usb_mount_point" || log_error "Failed to mount USB"
+    mkfs.fat -F32 "${SELECTED_DRIVE}1" || log_error "Failed to format as FAT32"
+    mount "${SELECTED_DRIVE}1" "$USB_MOUNT_POINT" || log_error "Failed to mount USB"
 }
 
 get_dirty_kb() {
@@ -182,104 +186,75 @@ get_dirty_kb() {
 }
 
 extract_iso() {
-    iso_files=(Win*.iso)
-    if [ ! -e "${iso_files[0]}" ]; then
-        clear
-        banner
-        log_error "No Windows ISO found in the current directory."
+    local i max_retries=3 attached_loops loop upid spin='-\|/' 
+    local cur_dirty rem_txt prog initial_dirty ref_kb
+
+    # (Functionality logic preserved: ensuring ISO path is ready)
+    if [[ -z "$SELECTED_ISO_PATH" ]]; then
+        get_the_iso
     fi
-    if [ ${#iso_files[@]} -eq 1 ]; then
-        iso_path="${iso_files[0]}"
-    else
-        clear
-        banner
-        printf "Multiple Windows ISO files found. Please select one:\n"
-        select iso_path in "${iso_files[@]}"; do
-            [ -n "$iso_path" ] && break || printf "Invalid selection.\n"
+
+    # Forcefully unmount the mount point if mounted
+    if mountpoint -q "$ISO_MOUNT_DIR"; then
+        printf "Unmounting existing mount...\n"
+        umount -f "$ISO_MOUNT_DIR" || {
+            printf "Force unmount failed, trying lazy unmount...\n"
+            umount -l "$ISO_MOUNT_DIR"
+        }
+    fi
+
+    attached_loops=$(losetup -j "$SELECTED_ISO_PATH" 2>/dev/null | cut -d: -f1)
+    if [[ -n "$attached_loops" ]]; then
+        printf "Detaching existing loop devices for the ISO...\n"
+        for loop in $attached_loops; do
+            losetup -d "$loop"
         done
     fi
 
-# Forcefully unmount the mount point if mounted
-if mountpoint -q "$iso_mount_dir"; then
-    printf "Unmounting existing mount...\n"
-    umount -f "$iso_mount_dir" || {
-        printf "Force unmount failed, trying lazy unmount...\n"
-        umount -l "$iso_mount_dir"
-    }
-fi
-
-attached_loops=$(losetup -j "$iso_path" 2>/dev/null | cut -d: -f1)
-if [ -n "$attached_loops" ]; then
-    printf "Detaching existing loop devices for the ISO...\n"
-    for loop in $attached_loops; do
-        losetup -d "$loop"
-    done
-fi
-
-max_retries=3
-for ((i=1; i<=max_retries; i++)); do
-    if mount -o loop,ro "$iso_path" "$iso_mount_dir"; then
-        break
-    else
-        if [[ $i -eq max_retries ]]; then
-            log_error "Failed to mount ISO after $max_retries attempts"
-            exit 1
+    for ((i=1; i<=max_retries; i++)); do
+        if mount -o loop,ro "$SELECTED_ISO_PATH" "$ISO_MOUNT_DIR"; then
+            break
+        else
+            if [[ $i -eq max_retries ]]; then
+                log_error "Failed to mount ISO after $max_retries attempts"
+            fi
+            sleep 1
+            printf "Retrying mount (%d/%d)...\n" "$i" "$max_retries"
         fi
-        sleep 1
-        printf "Retrying mount (%d/%d)...\n" "$i" "$max_retries"
-    fi
-done
+    done
 
     # Split the install.wim file to fit into the FAT32 limitation
     printf "Splitting install.wim...\n"
-    mkdir -p "$usb_mount_point/sources"
-    wimlib-imagex split "$iso_mount_dir/sources/install.wim" \
-        "$usb_mount_point/sources/install.swm" 3400 || log_error "Failed to split WIM"
-    clear
-    banner
-    printf "Copying files...\n"
+    mkdir -p "$USB_MOUNT_POINT/sources"
+    wimlib-imagex split "$ISO_MOUNT_DIR/sources/install.wim" \
+        "$USB_MOUNT_POINT/sources/install.swm" 3400 || log_error "Failed to split WIM"
+    printf "Rsyncing remaining files...\n"
     rsync -rltD --no-owner --no-group --modify-window=1 --info=progress2 --human-readable \
         --exclude="sources/install.wim" \
-        "$iso_mount_dir/" "$usb_mount_point/" 2>&1 || {
-        if [ $? -eq 23 ]; then
+        "$ISO_MOUNT_DIR/" "$USB_MOUNT_POINT/" 2>&1 || {
+        
+        local r_err=$?
+        if [[ $r_err -eq 23 ]]; then
             printf "\nNote: Some attributes not preserved (normal for FAT32)\n"
         else
-            log_error "File copy failed"
+            log_error "File copy failed with exit code $r_err"
         fi
     }
 
-    cat <<"EOF"
-
->  Important: Copying Windows Files to USB Drive  <
->  Do Not Remove the Drive or Interrupt the Process  <
-
-    This process involves copying a large amount of data to the USB drive. 
-    On slower USB 2.0 drives, it can take up to 20 to 30 minutes to complete. 
-    Using a USB 3.0 drive or an external SSD will significantly reduce the time required.
-
-    Please be patient and ensure the drive remains connected throughout the process 
-    to avoid data corruption or an incomplete installation.
-
-EOF
-
-    printf "Synchronizing drive partition %s1...\n" "$drive"
+    printf "Synchronizing drive partition %s1...\n" "$SELECTED_DRIVE"
     
-    local total_to_sync_kb=$(du -s "$usb_mount_point" | awk '{print $1}')
-    local initial_dirty=$(get_dirty_kb)
-    
-    local ref_kb=$initial_dirty
+    initial_dirty=$(get_dirty_kb)
+    ref_kb=$initial_dirty
     if (( ref_kb < 1024 )); then ref_kb=1024; fi
 
-    umount "$usb_mount_point" &
-    local upid=$!
-    local spin='-\|/'
-    local i=0
+    umount "$USB_MOUNT_POINT" &
+    upid=$!
+    i=0
 
-    while kill -0 $upid 2>/dev/null; do
-        local cur_dirty=$(get_dirty_kb)
+    while kill -0 "$upid" 2>/dev/null; do
+        cur_dirty=$(get_dirty_kb)
         
         # Human readable math
-        local rem_txt
         if (( cur_dirty > 1048576 )); then
             rem_txt=$(awk "BEGIN {printf \"%.2f GB\", $cur_dirty/1048576}")
         else
@@ -287,7 +262,7 @@ EOF
         fi
 
         # Percentage math (clamped between 92 and 99.8)
-        local prog=$(awk "BEGIN {p = 92 + ((1.0 - ($cur_dirty / $ref_kb)) * 7.8); if (p > 99.8) p=99.8; if (p < 92) p=92; printf \"%.1f\", p}")
+        prog=$(awk "BEGIN {p = 92 + ((1.0 - ($cur_dirty / $ref_kb)) * 7.8); if (p > 99.8) p=99.8; if (p < 92) p=92; printf \"%.1f\", p}")
         
         # Logic for when buffer is essentially clear but umount is still busy
         if (( cur_dirty <= 512 )); then
@@ -299,18 +274,17 @@ EOF
         
         sleep 0.1
     done
-
-    wait $upid
-    if [ $? -ne 0 ]; then
+    
+    if ! wait "$upid"; then
         log_error "Failed to unmount the drive."
     fi
     
     printf "\r\033[KFinalizing... 100%% Done!\n"
-    trap cleanup EXIT
-    printf "\nWindows installation prepared successfully!\n"
+    printf "\nWindows installation completed successfully!\n"
 }
 
 main() {
+    trap cleanup EXIT
     get_root "$@"
     check_for_internet "$@"
     get_the_drive "$@"
@@ -320,4 +294,4 @@ main() {
     extract_iso "$@"
 }
 
-main "$@" | tee "$log"
+main "$@"
