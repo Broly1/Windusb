@@ -1,5 +1,8 @@
 # WindUSB Installation Script
 
+> [!TIP]
+> **For GUI AppImage Builds try** **[WindUSB-GUI](https://github.com/Broly1/WindUSB-GUI)**
+
 ## Description
 
 This Bash script automates the process of creating a bootable Windows USB drive. It install required dependencies, and extract the Windows ISO file to the drive. The script also checks for root permissions and supports multiple Linux distributions.
