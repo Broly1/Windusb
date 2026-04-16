@@ -84,7 +84,7 @@ get_the_drive() {
         printf "===============================================\n\n"
         printf "Please select the USB drive from the following list:\n"
         readarray -t lines < <(
-            lsblk -dpno NAME,SIZE,MODEL,VENDOR,TRAN --filter 'TRAN=="usb"'
+            lsblk -dpno NAME,SIZE,MODEL,VENDOR,TRAN | awk '$NF=="usb"'
         )
         if [[ ${#lines[@]} -eq 0 ]]; then
             printf "No USB drives detected.\n"
