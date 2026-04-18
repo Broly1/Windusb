@@ -56,6 +56,18 @@ No manual partitioning. No manual mounting. No guesswork.
 ## Usage
 
 ### 1. Download and Run
+Make sure you have wget or curl installed and run this commands:
+
+**Using wget:**
+```bash
+wget -O windusb.sh https://raw.githubusercontent.com/Broly1/Windusb/master/windusb.sh
+chmod +x windusb.sh
+./windusb.sh
+````
+
+or
+
+**Using curl:**
 
 ```bash
 curl -o windusb.sh https://raw.githubusercontent.com/Broly1/Windusb/master/windusb.sh

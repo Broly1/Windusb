@@ -20,9 +20,9 @@ SELECTED_DRIVE=""
 SELECTED_ISO_PATH=""
 
 # Dependency manifests categorized by package manager
-DEBIAN_PACKAGES=("curl" "rsync" "wget" "gdisk" "wimtools")
-FEDORA_PACKAGES=("curl" "rsync" "wget" "gdisk" "wimlib-utils")
-ARCH_PACKAGES=("curl" "rsync" "wget" "gptfdisk" "wimlib")
+DEBIAN_PACKAGES=("rsync" "wget" "gdisk" "wimtools")
+FEDORA_PACKAGES=("rsync" "wget" "gdisk" "wimlib-utils")
+ARCH_PACKAGES=("rsync" "wget" "gptfdisk" "wimlib")
 
 # -----------------------------------------------------------------------------
 # Utility Functions
